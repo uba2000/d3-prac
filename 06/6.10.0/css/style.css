@@ -5,7 +5,7 @@
 }
 
 #logo {
-  height:50px;
+  height: 50px;
 }
 
 .navbar-brand {
@@ -17,16 +17,18 @@
   font: 10px sans-serif;
 }
 
-.axis path, .axis line {
+.axis path,
+.axis line {
   fill: none;
-  stroke: #D4D8DA;
+  stroke: #d4d8da;
   stroke-width: 2px;
   shape-rendering: crispEdges;
 }
 
 .line {
   fill: none;
-  stroke-width: 2px;
+  stroke: #0069ff;
+  stroke-width: 1.5px;
 }
 
 .overlay {
@@ -35,24 +37,18 @@
 }
 
 .focus circle {
-  fill: #F1F3F3;
-  stroke: #777;
+  fill: #0069ff;
+  stroke: #ffffff;
   stroke-width: 3px;
 }
-  
+
 .hover-line {
   stroke: #777;
-  stroke-width: 2px;
-  stroke-dasharray: 3,3;
+  stroke-width: 1px;
+  stroke-dasharray: 4, 4;
 }
 
 #selections .col-md-4 {
   padding-top: 10px;
   padding-bottom: 10px;
-}
-
-.line {
-  fill: none;
-  stroke-width: 3px;
-  stroke: grey;
 }
