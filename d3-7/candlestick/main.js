@@ -1,5 +1,6 @@
 (async function draw() {
   let interval = "1s";
+  let intervalNumber = Number(interval.split(/m|h|d|s/)[0]);
 
   var binanceSocket = new WebSocket(
     `wss://stream.binance.com:9443/ws/btcusdt@kline_${interval}`
@@ -19,6 +20,24 @@
   const yoAccessor = (d) => d.Open;
   const ycAccessor = (d) => d.Close;
 
+  // Interval Functions
+  const intervalFunctions = {
+    // Remove seconds or minutes for days on weekends...
+    "1s": (start, stop) => d3.utcSeconds(start, +stop + 1), // 1 minute
+    "5m": (start, stop) => d3.utcMinutes(start, +stop + 1), // 5 minutes
+    "1d": (start, stop) =>
+      d3
+        .utcDays(start, +stop + 1)
+        .filter((d) => d.getUTCDay() !== 0 && d.getUTCDay() !== 6), // 1 day
+  };
+
+  // Interval x-axis ticks
+  const intervalTickXValues = {
+    "1s": (start, stop) => d3.utcMonday.every(1).range(start, +stop + 1),
+    "5m": (start, stop) => d3.utcMonday.every(1).range(start, +stop + 1),
+    "1d": (start, stop) => d3.utcMonday.every(1).range(start, +stop + 1),
+  };
+
   // Values
   function calculateAxisValues(data) {
     const xValues = d3.map(data, xAccessor);
@@ -31,20 +50,8 @@
     return { xValues, yoValues, ycValues, yhValues, ylValues, IRange };
   }
 
-  const intervalFunctions = {
-    "1s": (start, stop) => d3.utcSeconds(start, +stop + 1), // 1 minute
-    "1d": (start, stop) =>
-      d3
-        .utcDays(start, +stop + 1)
-        .filter((d) => d.getUTCDay() !== 0 && d.getUTCDay() !== 6), // 1 day
-  };
-
   // Scales
   function calculateScale(xValues, { ylValues, yhValues }) {
-    console.log(
-      interval + ":",
-      intervalFunctions[interval](d3.min(xValues), d3.max(xValues))
-    );
     let xDomain = intervalFunctions[interval](d3.min(xValues), d3.max(xValues));
     let xScale = d3
       .scaleBand()
@@ -101,7 +108,7 @@
       .axisBottom(xScale)
       .tickFormat(d3.utcFormat("%b %-d"))
       .tickValues(
-        d3.utcMonday.every(1).range(d3.min(xDomain), +d3.max(xDomain) + 1)
+        intervalTickXValues[interval](d3.min(xDomain), d3.max(xDomain))
       );
     let xAxisGroup = ctr
       .append("g")
@@ -183,29 +190,30 @@
   }
 
   function update(updateData) {
-    // 1. new data need to be added to 'dataset' then recalculate values
-    // TODO: Update the whole chart based on the selected interval
-    dataset = dataset.filter((d) => d.Date !== updateData.Date);
-    dataset = [...dataset, updateData];
-    const { xValues, yoValues, ycValues, yhValues, ylValues, IRange } =
-      calculateAxisValues(dataset);
-    // 2. update axis
-    const { xDomain, xScale, yScale } = calculateScale(xValues, {
-      ylValues,
-      yhValues,
-    });
-    // 3. add candle
-    drawCandle(IRange, {
-      xValues,
-      xScale,
-      yScale,
-      ylValues,
-      yhValues,
-      yoValues,
-      ycValues,
-    });
+    if (updateData.Date % intervalNumber === 0) {
+      // 1. new data need to be added to 'dataset' then recalculate values
+      // dataset = dataset.filter((d) => d.Date !== updateData.Date);
+      dataset = [...dataset, updateData];
+      const { xValues, yoValues, ycValues, yhValues, ylValues, IRange } =
+        calculateAxisValues(dataset);
+      // 2. update axis
+      const { xDomain, xScale, yScale } = calculateScale(xValues, {
+        ylValues,
+        yhValues,
+      });
+      // 3. add candle
+      drawCandle(IRange, {
+        xValues,
+        xScale,
+        yScale,
+        ylValues,
+        yhValues,
+        yoValues,
+        ycValues,
+      });
 
-    drawAxis({ xScale, xDomain }, { yScale });
+      drawAxis({ xScale, xDomain }, { yScale });
+    }
   }
 
   binanceSocket.onmessage = function (event) {
@@ -213,7 +221,7 @@
 
     var candlestick = message.k;
 
-    console.log(candlestick);
+    // console.log(candlestick);
 
     update({
       Date: candlestick.t,
