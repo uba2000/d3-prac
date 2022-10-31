@@ -33,9 +33,16 @@
 
   // Interval x-axis ticks
   const intervalTickXValues = {
-    "1s": (start, stop) => d3.utcMonday.every(1).range(start, +stop + 1),
-    "5m": (start, stop) => d3.utcMonday.every(1).range(start, +stop + 1),
+    "1s": (start, stop) => d3.utcSecond.every(30).range(start, +stop + 1),
+    "5m": (start, stop) => d3.utcMinute.every(1).range(start, +stop + 1),
     "1d": (start, stop) => d3.utcMonday.every(1).range(start, +stop + 1),
+  };
+
+  // Interval x-axis formats
+  const intervalFormats = {
+    "1s": "%-H:%M:%S",
+    "5m": "%b %-d",
+    "1d": "%b %-d",
   };
 
   // Values
@@ -106,7 +113,7 @@
   function drawAxis({ xScale, xDomain }, { yScale }) {
     let xAxis = d3
       .axisBottom(xScale)
-      .tickFormat(d3.utcFormat("%b %-d"))
+      .tickFormat(d3.utcFormat(intervalFormats[interval]))
       .tickValues(
         intervalTickXValues[interval](d3.min(xDomain), d3.max(xDomain))
       );
@@ -191,8 +198,9 @@
 
   function update(updateData) {
     if (updateData.Date % intervalNumber === 0) {
+      // update data of same time
+      dataset = dataset.filter((d) => d.Date !== updateData.Date);
       // 1. new data need to be added to 'dataset' then recalculate values
-      // dataset = dataset.filter((d) => d.Date !== updateData.Date);
       dataset = [...dataset, updateData];
       const { xValues, yoValues, ycValues, yhValues, ylValues, IRange } =
         calculateAxisValues(dataset);
