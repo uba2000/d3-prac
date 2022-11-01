@@ -1,5 +1,5 @@
 (async function draw() {
-  let interval = "1s";
+  let interval = "1m";
   let intervalNumber = Number(interval.split(/m|h|d|s/)[0]);
 
   var binanceSocket = new WebSocket(
@@ -24,6 +24,7 @@
   const intervalFunctions = {
     // Remove seconds or minutes for days on weekends...
     "1s": (start, stop) => d3.utcSeconds(start, +stop + 1), // 1 minute
+    "1m": (start, stop) => d3.utcMinutes(start, +stop + 1), // 1 minute
     "5m": (start, stop) => d3.utcMinutes(start, +stop + 1), // 5 minutes
     "1d": (start, stop) =>
       d3
@@ -34,15 +35,16 @@
   // Interval x-axis ticks
   const intervalTickXValues = {
     "1s": (start, stop) => d3.utcSecond.every(30).range(start, +stop + 1),
+    "1m": (start, stop) => d3.utcMinute.every(30).range(start, +stop + 1),
     "5m": (start, stop) => d3.utcMinute.every(1).range(start, +stop + 1),
     "1d": (start, stop) => d3.utcMonday.every(1).range(start, +stop + 1),
   };
 
   // Interval x-axis formats
   const intervalFormats = {
-    "1s": "%-H:%M:%S",
-    "5m": "%b %-d",
-    "1d": "%b %-d",
+    "1s": d3.utcFormat("%-H:%M:%S"),
+    "5m": d3.utcFormat("%b %-d"),
+    "1d": d3.utcFormat("%b %-d"),
   };
 
   // Values
@@ -113,7 +115,7 @@
   function drawAxis({ xScale, xDomain }, { yScale }) {
     let xAxis = d3
       .axisBottom(xScale)
-      .tickFormat(d3.utcFormat(intervalFormats[interval]))
+      .tickFormat(intervalFormats[interval])
       .tickValues(
         intervalTickXValues[interval](d3.min(xDomain), d3.max(xDomain))
       );
@@ -195,6 +197,8 @@
     //Axis
     drawAxis({ xScale, xDomain }, { yScale });
   }
+
+  // Scrollable
 
   function update(updateData) {
     if (updateData.Date % intervalNumber === 0) {
