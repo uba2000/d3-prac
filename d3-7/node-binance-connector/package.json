@@ -1,0 +1,19 @@
+{
+  "name": "binance-connector",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon app.js"
+  },
+  "author": "",
+  "dependencies": {
+    "@binance/connector": "^2.0.0-rc.3",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "nodemon": "^2.0.20"
+  }
+}

@@ -1,4 +1,16 @@
 (async function draw() {
+  function formatHistoryData(data) {
+    return data.map((d) => {
+      return {
+        Date: d[0],
+        Open: d[1],
+        High: d[2],
+        Low: d[3],
+        Close: d[4],
+      };
+    });
+  }
+
   let interval = "1m";
   let intervalNumber = Number(interval.split(/m|h|d|s/)[0]);
 
@@ -7,8 +19,9 @@
   );
 
   // Data
-  // let dataset = await d3.json("coins.json");
-  let dataset = [];
+  let dataset = formatHistoryData(await d3.json(`history-${interval}.json`));
+  // get historical data then continue with chart drawing...
+  // let dataset = [];
   // console.log(dataset);
 
   const colors = ["#1ACE37", "#999999", "#FF0F00"]; // [up, no change, down]
@@ -43,6 +56,7 @@
   // Interval x-axis formats
   const intervalFormats = {
     "1s": d3.utcFormat("%-H:%M:%S"),
+    "1m": d3.utcFormat("%-H:%M:%S"),
     "5m": d3.utcFormat("%b %-d"),
     "1d": d3.utcFormat("%b %-d"),
   };
@@ -233,8 +247,6 @@
 
     var candlestick = message.k;
 
-    // console.log(candlestick);
-
     update({
       Date: candlestick.t,
       Open: candlestick.o,
@@ -243,64 +255,4 @@
       Close: candlestick.c,
     });
   };
-
-  // setTimeout(() => {
-  //   update({
-  //     Date: "2018-05-15T00:00:00.000Z",
-  //     Open: 184.990005,
-  //     High: 186.220001,
-  //     Low: 183.669998,
-  //     Close: 186.050003,
-  //     "Adj Close": 185.335327,
-  //     Volume: 28402800,
-  //   });
-  // }, 3000);
-
-  // setTimeout(() => {
-  //   update({
-  //     Date: "2018-05-15T00:00:00.000Z",
-  //     Open: 185.179993,
-  //     High: 187.669998,
-  //     Low: 184.75,
-  //     Close: 185.160004,
-  //     "Adj Close": 184.448746,
-  //     Volume: 42451400,
-  //   });
-  // }, 6000);
-
-  // setTimeout(() => {
-  //   update({
-  //     Date: "2018-05-16T00:00:00.000Z",
-  //     Open: 175.880005,
-  //     High: 177.5,
-  //     Low: 174.440002,
-  //     Close: 176.889999,
-  //     "Adj Close": 176.21051,
-  //     Volume: 34068200,
-  //   });
-  // }, 9000);
-
-  // setTimeout(() => {
-  //   update({
-  //     Date: "2018-05-17T00:00:00.000Z",
-  //     Open: 175.229996,
-  //     High: 177.75,
-  //     Low: 173.800003,
-  //     Close: 176.570007,
-  //     "Adj Close": 175.891754,
-  //     Volume: 66539400,
-  //   });
-  // }, 12000);
-
-  // setTimeout(() => {
-  //   update({
-  //     Date: "2018-05-20T00:00:00.000Z",
-  //     Open: 175.229996,
-  //     High: 177.75,
-  //     Low: 173.800003,
-  //     Close: 176.570007,
-  //     "Adj Close": 175.891754,
-  //     Volume: 66539400,
-  //   });
-  // }, 15000);
 })();
