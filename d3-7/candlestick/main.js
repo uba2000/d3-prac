@@ -126,13 +126,15 @@ function wrap(text, width) {
 
   // Scales
   function calculateScale(xValues, { ylValues, yhValues }) {
-    let xDomain = intervalFunctions[interval](d3.min(xValues), d3.max(xValues));
-    let xRange = [dimensions.margin.left, dimensions.ctrWidth];
+    // let xDomain = intervalFunctions[interval](d3.min(xValues), d3.max(xValues));
+    let xDomain = d3.range(-1, xValues.length);
+    // let xRange = [dimensions.margin.left, dimensions.ctrWidth];
+    let xRange = [0, dimensions.ctrWidth];
     let xLinearScale = d3
       .scaleLinear()
-      .domain([d3.min(xValues) - 1, d3.max(xValues)])
-      .range(xRange);
-    let xScale = d3.scaleBand().domain(xDomain).range(xRange);
+      .domain([-1, xValues.length])
+      .range([0, dimensions.ctrWidth]);
+    let xScale = d3.scaleBand().domain(xDomain).range(xRange).padding(0.3);
     let xDateScale = d3
       .scaleQuantize()
       .domain([0, xValues.length])
@@ -178,6 +180,7 @@ function wrap(text, width) {
     // remove previous candle groups
     candleGroup.select("line.wick").remove();
     candleGroup.select("line.body").remove();
+    // ctr.select('defs').remove();
 
     // Wick
     // with 'line'...
@@ -190,10 +193,11 @@ function wrap(text, width) {
     const wicks = candleGroup
       .append("line")
       .attr("class", "candle-wick")
-      .attr("x1", (d) => xLinearScale(xValues[d]) - xScale.bandwidth() / 2)
-      .attr("x2", (d, i) => xLinearScale(xValues[d]) - xScale.bandwidth() / 2)
+      .attr("x1", (d, i) => xLinearScale(i) - xScale.bandwidth() / 2)
+      .attr("x2", (d, i) => xLinearScale(i) - xScale.bandwidth() / 2)
       .attr("y1", (d) => yScale(yhValues[d]))
       .attr("y2", (d) => yScale(ylValues[d]));
+    // .attr("stroke", (i) => colors[1 + Math.sign(yoValues[i] - ycValues[i])]);
 
     // Candle body
     // with 'line'...
@@ -207,7 +211,7 @@ function wrap(text, width) {
     // with 'rect'...
     const candles = candleGroup
       .append("rect")
-      .attr("x", (d, i) => xLinearScale(xValues[d]) - xScale.bandwidth())
+      .attr("x", (d, i) => xLinearScale(i) - xScale.bandwidth())
       .attr("class", "candle-body")
       .attr("y", (d) => yScale(Math.max(yoValues[d], ycValues[d])))
       .attr("width", xScale.bandwidth())
@@ -252,7 +256,6 @@ function wrap(text, width) {
     let yAxisGroup = ctr
       .append("g")
       .attr("class", "yAxis")
-      .attr("transform", `translate(0,0)`)
       .call(yAxis)
       .call((g) => g.select(".domain").remove())
       .call(
@@ -330,8 +333,8 @@ function wrap(text, width) {
       .zoom()
       .scaleExtent([1, 100])
       .translateExtent(extent)
-      .on("zoom", zoomed);
-    // .on("zoom.end", zoomend);
+      .on("zoom", zoomed)
+      .on("zoom.end", zoomend);
 
     svg.call(zoom);
 
@@ -362,22 +365,16 @@ function wrap(text, width) {
         .call((g) => g.select(".domain").remove());
       // debugger;
       candles
-        .attr("x", (d) => xScaleZ(xValues[d]) - (xScale.bandwidth() * t.k) / 2)
+        .attr("x", (d, i) => xScaleZ(i) - (xScale.bandwidth() * t.k) / 2)
         .attr("width", xScale.bandwidth() * t.k);
 
       wicks.attr(
         "x1",
-        (d, i) =>
-          xScaleZ(xValues[d]) -
-          xScale.bandwidth() / 2 +
-          xScale.bandwidth() * 0.5
+        (d, i) => xScaleZ(i) - xScale.bandwidth() / 2 + xScale.bandwidth() * 0.5
       );
       wicks.attr(
         "x2",
-        (d, i) =>
-          xScaleZ(xValues[d]) -
-          xScale.bandwidth() / 2 +
-          xScale.bandwidth() * 0.5
+        (d, i) => xScaleZ(i) - xScale.bandwidth() / 2 + xScale.bandwidth() * 0.5
       );
 
       hideTicksWithoutLabel();
