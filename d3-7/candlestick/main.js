@@ -1,3 +1,37 @@
+function wrap(text, width) {
+  text.each(function () {
+    let text = d3.select(this);
+    let words = text.text().split(/\s+/).reverse();
+    let word,
+      line = [],
+      lineNumber = 0,
+      lineHeight = 1.1,
+      y = text.attr("y"),
+      dy = parseFloat(text.attr("dy")),
+      tspan = text
+        .text(null)
+        .append("tspan")
+        .attr("x", 0)
+        .attr("y", y)
+        .attr("dy", dy + "em");
+    while ((word = words.pop())) {
+      line.push(word);
+      tspan.text(line.join(" "));
+      if (tspan.node().getComputedTextLength() > width) {
+        line.pop();
+        tspan.text(line.join(" "));
+        line = [word];
+        tspan = text
+          .append("tspan")
+          .attr("x", 0)
+          .attr("y", y)
+          .attr("dy", ++lineNumber * lineHeight + dy + "em")
+          .text(word);
+      }
+    }
+  });
+}
+
 (async function draw() {
   function formatHistoryData(data) {
     return data.map((d) => {
@@ -32,6 +66,23 @@
   const yhAccessor = (d) => d.High;
   const yoAccessor = (d) => d.Open;
   const ycAccessor = (d) => d.Close;
+
+  // Dimensions
+  let dimensions = {
+    width: 640,
+    height: 400,
+    margin: {
+      top: 20,
+      bottom: 30,
+      right: 30,
+      left: 50,
+    },
+  };
+
+  dimensions.ctrWidth =
+    dimensions.width - dimensions.margin.left - dimensions.margin.right;
+  dimensions.ctrHeight =
+    dimensions.height - dimensions.margin.top - dimensions.margin.bottom;
 
   // Interval Functions
   const intervalFunctions = {
@@ -76,73 +127,132 @@
   // Scales
   function calculateScale(xValues, { ylValues, yhValues }) {
     let xDomain = intervalFunctions[interval](d3.min(xValues), d3.max(xValues));
-    let xScale = d3
-      .scaleBand()
-      .domain(xDomain)
-      .range([dimensions.margin.left + 10, dimensions.ctrWidth]);
+    let xRange = [dimensions.margin.left, dimensions.ctrWidth];
+    let xLinearScale = d3
+      .scaleLinear()
+      .domain([d3.min(xValues) - 1, d3.max(xValues)])
+      .range(xRange);
+    let xScale = d3.scaleBand().domain(xDomain).range(xRange);
+    let xDateScale = d3
+      .scaleQuantize()
+      .domain([0, xValues.length])
+      .range(xValues);
 
     const yScale = d3
       .scaleLinear()
       .domain([d3.min(ylValues), d3.max(yhValues)])
-      .range([dimensions.ctrHeight, 0]);
+      .range([dimensions.ctrHeight, 0])
+      .nice();
 
-    return { xDomain, xScale, yScale };
+    return { xDomain, xLinearScale, xScale, yScale, xDateScale };
   }
 
   // Draw Candles
   function drawCandle(
     IRange,
-    { xValues, xScale, yScale, ylValues, yhValues, yoValues, ycValues }
+    {
+      xValues,
+      xScale,
+      xLinearScale,
+      yScale,
+      ylValues,
+      yhValues,
+      yoValues,
+      ycValues,
+    }
   ) {
-    let candleGroup = ctr
-      .selectAll("g")
+    let chartBody = ctr
+      .append("g")
+      .attr("class", "chartBody")
+      .attr("clip-path", "url(#clip)");
+
+    let candleGroup = chartBody
+      .selectAll("g.candle-group")
       .data(IRange)
       .join("g")
       .classed("candle-group", true)
-      .attr("transform", (i) => `translate(${xScale(new Date(xValues[i]))},0)`)
-      .attr("stroke", "currentColor")
-      .attr("stroke-linecap", "round");
+      // .attr("transform", (i) => `translate(${xScale(new Date(xValues[i]))},0)`)
+      .attr("stroke", "currentColor");
+    // .attr("stroke-linecap", "round");
 
     // remove previous candle groups
     candleGroup.select("line.wick").remove();
     candleGroup.select("line.body").remove();
 
     // Wick
-    candleGroup
+    // with 'line'...
+    // const wicks = candleGroup
+    //   .append("line")
+    //   .attr("y1", (i) => yScale(ylValues[i]))
+    //   .attr("y2", (i) => yScale(yhValues[i]))
+    //   .attr("class", "candle-wick");
+
+    const wicks = candleGroup
       .append("line")
-      .attr("y1", (i) => yScale(ylValues[i]))
-      .attr("y2", (i) => yScale(yhValues[i]))
-      .attr("class", "wick");
+      .attr("class", "candle-wick")
+      .attr("x1", (d) => xLinearScale(xValues[d]) - xScale.bandwidth() / 2)
+      .attr("x2", (d, i) => xLinearScale(xValues[d]) - xScale.bandwidth() / 2)
+      .attr("y1", (d) => yScale(yhValues[d]))
+      .attr("y2", (d) => yScale(ylValues[d]));
 
     // Candle body
-    candleGroup
-      .append("line")
-      .attr("y1", (i) => yScale(yoValues[i]))
-      .attr("y2", (i) => yScale(ycValues[i]))
-      // .attr("stroke-width", xScale.bandwidth())
-      .attr("stroke-width", 3)
-      .attr("class", "body")
-      .attr("stroke", (i) => colors[1 + Math.sign(yoValues[i] - ycValues[i])]);
+    // with 'line'...
+    // const candles = candleGroup
+    //   .append("line")
+    //   .attr("y1", (i) => yScale(yoValues[i]))
+    //   .attr("y2", (i) => yScale(ycValues[i]))
+    //   .attr("stroke-width", xScale.bandwidth())
+    //   .attr("class", "candle-body")
+    //   .attr("stroke", (i) => colors[1 + Math.sign(yoValues[i] - ycValues[i])]);
+    // with 'rect'...
+    const candles = candleGroup
+      .append("rect")
+      .attr("x", (d, i) => xLinearScale(xValues[d]) - xScale.bandwidth())
+      .attr("class", "candle-body")
+      .attr("y", (d) => yScale(Math.max(yoValues[d], ycValues[d])))
+      .attr("width", xScale.bandwidth())
+      .attr("height", (d) =>
+        yoValues[d] === ycValues[d]
+          ? 1
+          : yScale(Math.min(yoValues[d], ycValues[d])) -
+            yScale(Math.max(yoValues[d], ycValues[d]))
+      )
+      .attr("fill", (i) => colors[1 + Math.sign(yoValues[i] - ycValues[i])])
+      .attr("stroke", "transparent");
+
+    ctr
+      .append("defs")
+      .append("clipPath")
+      .attr("id", "clip")
+      .append("rect")
+      .attr("width", dimensions.ctrWidth)
+      .attr("height", dimensions.ctrHeight);
+
+    return { candleGroup, wicks, candles };
   }
 
   //Axis
-  function drawAxis({ xScale, xDomain }, { yScale }) {
+  function drawAxis({ xScale, xLinearScale, xDomain }, { yScale }) {
     let xAxis = d3
-      .axisBottom(xScale)
+      .axisBottom(xLinearScale)
       .tickFormat(intervalFormats[interval])
       .tickValues(
         intervalTickXValues[interval](d3.min(xDomain), d3.max(xDomain))
       );
     let xAxisGroup = ctr
       .append("g")
+      .attr("class", "xAxis")
+      .attr("transform", `translate(0, ${dimensions.ctrHeight})`)
       .call(xAxis)
-      .call((g) => g.select(".domain").remove())
-      .attr("transform", `translate(0, ${dimensions.ctrHeight})`);
+      .call((g) => g.select(".domain").remove());
+
+    xAxisGroup.selectAll(".tick text").call(wrap, xScale.bandwidth());
 
     let yAxis = d3.axisLeft(yScale).ticks(dimensions.height / 40, "~f");
     let yAxisGroup = ctr
       .append("g")
-      .attr("transform", `translate(${dimensions.margin.left},0)`)
+      .attr("class", "yAxis")
+      .attr("transform", `translate(0,0)`)
       .call(yAxis)
       .call((g) => g.select(".domain").remove())
       .call(
@@ -153,28 +263,9 @@
             .attr("stroke-opacity", 0.2)
             .attr("x2", dimensions.ctrWidth) // vertical lines across the chart
       );
+
+    return { xAxisGroup, yAxisGroup };
   }
-
-  // Values
-  const { xValues, yoValues, ycValues, yhValues, ylValues, IRange } =
-    calculateAxisValues(dataset);
-
-  // Dimensions
-  let dimensions = {
-    width: 640,
-    height: 400,
-    margin: {
-      top: 20,
-      bottom: 30,
-      right: 30,
-      left: 50,
-    },
-  };
-
-  dimensions.ctrWidth =
-    dimensions.width - dimensions.margin.left - dimensions.margin.right;
-  dimensions.ctrHeight =
-    dimensions.height - dimensions.margin.top - dimensions.margin.bottom;
 
   // Draw image
   const svg = d3
@@ -190,17 +281,38 @@
       `translate(${dimensions.margin.left}, ${dimensions.margin.top})`
     );
 
+  const clipPath = ctr
+    .append("rect")
+    .attr("id", "rect")
+    .attr("width", dimensions.ctrWidth)
+    .attr("height", dimensions.ctrHeight)
+    .style("fill", "none")
+    .style("pointer-events", "all")
+    .attr("clip-path", "url(#clip)");
+
+  // Values
+  const { xValues, yoValues, ycValues, yhValues, ylValues, IRange } =
+    calculateAxisValues(dataset);
+
   if (dataset.length !== 0) {
     // Scales
-    const { xDomain, xScale, yScale } = calculateScale(xValues, {
-      ylValues,
-      yhValues,
-    });
+    const { xDomain, xScale, xLinearScale, yScale, xDateScale } =
+      calculateScale(xValues, {
+        ylValues,
+        yhValues,
+      });
+
+    //Axis
+    const { xAxisGroup, yAxisGroup } = drawAxis(
+      { xScale, xLinearScale, xDomain },
+      { yScale }
+    );
 
     // Draw Candles
-    drawCandle(IRange, {
+    const { candleGroup, candles, wicks } = drawCandle(IRange, {
       xValues,
       xScale,
+      xLinearScale,
       yScale,
       ylValues,
       yhValues,
@@ -208,11 +320,111 @@
       ycValues,
     });
 
-    //Axis
-    drawAxis({ xScale, xDomain }, { yScale });
-  }
+    // Scrollable
+    const extent = [
+      [0, 0],
+      [dimensions.ctrWidth, dimensions.ctrHeight],
+    ];
+    let resizeTimer;
+    let zoom = d3
+      .zoom()
+      .scaleExtent([1, 100])
+      .translateExtent(extent)
+      .on("zoom", zoomed);
+    // .on("zoom.end", zoomend);
 
-  // Scrollable
+    svg.call(zoom);
+
+    function zoomed(event) {
+      console.log("zoomed");
+      // debugger;
+      let t = d3.zoomTransform(this);
+      // let t = event.transform;
+      let xScaleZ = t.rescaleX(xLinearScale);
+
+      let hideTicksWithoutLabel = () => {
+        d3.selectAll(".xAxis .tick text").each(function (d) {
+          if (this.innerHTML === "") {
+            this.parentNode.style.display = "none";
+          }
+        });
+      };
+
+      xAxisGroup
+        .call(
+          d3
+            .axisBottom(xScale)
+            .tickFormat(intervalFormats[interval])
+            .tickValues(
+              intervalTickXValues[interval](d3.min(xDomain), d3.max(xDomain))
+            )
+        )
+        .call((g) => g.select(".domain").remove());
+      // debugger;
+      candles
+        .attr("x", (d) => xScaleZ(xValues[d]) - (xScale.bandwidth() * t.k) / 2)
+        .attr("width", xScale.bandwidth() * t.k);
+
+      wicks.attr(
+        "x1",
+        (d, i) =>
+          xScaleZ(xValues[d]) -
+          xScale.bandwidth() / 2 +
+          xScale.bandwidth() * 0.5
+      );
+      wicks.attr(
+        "x2",
+        (d, i) =>
+          xScaleZ(xValues[d]) -
+          xScale.bandwidth() / 2 +
+          xScale.bandwidth() * 0.5
+      );
+
+      hideTicksWithoutLabel();
+
+      xAxisGroup.selectAll(".tick text").call(wrap, xScale.bandwidth());
+    }
+
+    function zoomend(event) {
+      console.log("zoomend");
+      let t = d3.zoomTransform(this);
+      // let t = event.transform;
+      let xScaleZ = t.rescaleX(xLinearScale);
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        let xmin = new Date(xDateScale(Math.floor(xScaleZ.domain()[0])));
+        let xmax = new Date(xDateScale(Math.floor(xScaleZ.domain()[1])));
+        let filtered = dataset.filter((d) => d.Date >= xmin && d.Date <= xmax);
+        minP = +d3.min(filtered, ylAccessor);
+        maxP = +d3.max(filtered, yhAccessor);
+        buffer = Math.floor((maxP - minP) * 0.1);
+
+        yScale.domain([minP - buffer, maxP + buffer]);
+        candles
+          .transition()
+          .duration(800)
+          .attr("y", (d) => yScale(Math.max(yoValues[d], ycValues[d])))
+          .attr("height", (d) =>
+            yoValues[d] === ycValues[d]
+              ? 1
+              : yScale(Math.min(yoValues[d], ycValues[d])) -
+                yScale(Math.max(yoValues[d], ycValues[d]))
+          );
+
+        wicks
+          .transition()
+          .duration(800)
+          .attr("y1", (d) => yScale(yhValues[d]))
+          .attr("y2", (d) => yScale(ylValues[d]));
+
+        yAxisGroup
+          .transition()
+          .duration(800)
+          .call(d3.axisLeft(yScale).ticks(dimensions.height / 40, "~f"))
+          .call((g) => g.select(".domain").remove());
+      }, 500);
+    }
+  }
 
   function update(updateData) {
     if (updateData.Date % intervalNumber === 0) {
@@ -242,17 +454,31 @@
     }
   }
 
-  binanceSocket.onmessage = function (event) {
-    var message = JSON.parse(event.data);
+  // binanceSocket.onmessage = function (event) {
+  //   var message = JSON.parse(event.data);
 
-    var candlestick = message.k;
+  //   var candlestick = message.k;
 
-    update({
-      Date: candlestick.t,
-      Open: candlestick.o,
-      High: candlestick.h,
-      Low: candlestick.l,
-      Close: candlestick.c,
-    });
-  };
+  //   update({
+  //     Date: candlestick.t,
+  //     Open: candlestick.o,
+  //     High: candlestick.h,
+  //     Low: candlestick.l,
+  //     Close: candlestick.c,
+  //   });
+  // };
 })();
+
+// axios
+//   .get("http://localhost:5500/get-data", { mode: "no-cors" })
+//   .then(function (response) {
+//     // handle success
+//     console.log(response);
+//   })
+//   .catch(function (error) {
+//     // handle error
+//     console.log(error);
+//   })
+//   .finally(function () {
+//     // always executed
+//   });
