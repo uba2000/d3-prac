@@ -53,9 +53,9 @@ function wrap(text, width) {
   );
 
   // Data
-  // let dataset = formatHistoryData(await d3.json(`history-${interval}.json`));
+  let dataset = formatHistoryData(await d3.json(`history-${interval}.json`));
   // get historical data then continue with chart drawing...
-  let dataset = [];
+  // let dataset = [];
   // console.log(dataset);
 
   const colors = ["#1ACE37", "#999999", "#FF0F00"]; // [up, no change, down]
@@ -454,7 +454,7 @@ function wrap(text, width) {
   function update(updateData) {
     if (updateData.Date % intervalNumber === 0) {
       // update data of same time
-      // dataset = dataset.filter((d) => d.Date !== updateData.Date);
+      dataset = dataset.filter((d) => d.Date !== updateData.Date);
       // 1. new data need to be added to 'dataset' then recalculate values
       dataset = [...dataset, updateData];
       // dataset.filter((d) => d.getUTCDay() !== 0 && d.getUTCDay() !== 6)
