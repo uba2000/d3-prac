@@ -32,7 +32,15 @@ function wrap(text, width) {
   });
 }
 
-(async function draw() {
+let hideTicksWithoutLabel = () => {
+  d3.selectAll(".xAxis .tick text").each(function (d) {
+    if (this.innerHTML === "") {
+      this.parentNode.style.display = "none";
+    }
+  });
+};
+
+(async function draw(historyData) {
   function formatHistoryData(data) {
     return data.map((d) => {
       return {
@@ -56,7 +64,6 @@ function wrap(text, width) {
   let dataset = formatHistoryData(await d3.json(`history-${interval}.json`));
   // get historical data then continue with chart drawing...
   // let dataset = [];
-  // console.log(dataset);
 
   const colors = ["#1ACE37", "#999999", "#FF0F00"]; // [up, no change, down]
 
@@ -85,6 +92,26 @@ function wrap(text, width) {
     dimensions.height - dimensions.margin.top - dimensions.margin.bottom;
 
   let xValues = d3.map(dataset, xAccessor);
+  let yoValues = d3.map(dataset, yoAccessor);
+  let ycValues = d3.map(dataset, ycAccessor);
+  let yhValues = d3.map(dataset, yhAccessor);
+  let ylValues = d3.map(dataset, ylAccessor);
+  let IRange = d3.range(xValues.length);
+  let xAxisGroup;
+  let candles;
+  let xLinearScale;
+  let xScale;
+  let yScale;
+  let wicks;
+  let xDateScale;
+  let xScaleZ;
+  let t;
+  let xmin;
+  let xmax;
+  let filteredDate;
+  let minP;
+  let maxP;
+  let buffer;
 
   // Draw image
   const svg = d3
@@ -131,16 +158,14 @@ function wrap(text, width) {
 
   // Interval x-axis formats
   function timeFunctionFormat(d) {
-    console.log(d);
-    console.log("length", xValues.length);
     if (d === xValues.length) d = xValues.length - 1;
     d = xValues[d];
     if (d) {
       hours = d.getHours();
       minutes = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes();
-      amPM = hours < 13 ? "am" : "pm";
-      return hours + ":" + minutes + amPM;
+      return hours + ":" + minutes;
     }
+    return null;
   }
   const intervalFormats = {
     "1s": timeFunctionFormat,
@@ -152,54 +177,40 @@ function wrap(text, width) {
   // Values
   function calculateAxisValues(data) {
     xValues = d3.map(data, xAccessor);
-    const yoValues = d3.map(data, yoAccessor);
-    const ycValues = d3.map(data, ycAccessor);
-    const yhValues = d3.map(data, yhAccessor);
-    const ylValues = d3.map(data, ylAccessor);
-    const IRange = d3.range(xValues.length);
-
-    return { xValues, yoValues, ycValues, yhValues, ylValues, IRange };
+    yoValues = d3.map(data, yoAccessor);
+    ycValues = d3.map(data, ycAccessor);
+    yhValues = d3.map(data, yhAccessor);
+    ylValues = d3.map(data, ylAccessor);
+    IRange = d3.range(xValues.length);
   }
 
   // Scales
-  function calculateScale(xValues, { ylValues, yhValues }) {
+  function calculateScale() {
     // let xDomain = intervalFunctions[interval](d3.min(xValues), d3.max(xValues));
     let xDomain = d3.range(-1, xValues.length);
     // let xRange = [dimensions.margin.left, dimensions.ctrWidth];
     let xRange = [0, dimensions.ctrWidth];
-    let xLinearScale = d3
+    let yDomain = xScaleZ
+      ? [`${minP - buffer}`, `${maxP + buffer}`]
+      : [d3.min(ylValues), d3.max(yhValues)];
+    xLinearScale = d3
       .scaleLinear()
       .domain([-1, xValues.length])
       .range([0, dimensions.ctrWidth]);
-    let xScale = d3.scaleBand().domain(xDomain).range(xRange).padding(0.3);
-    let xDateScale = d3
-      .scaleQuantize()
-      .domain([0, xValues.length])
-      .range(xValues);
+    xScale = d3.scaleBand().domain(xDomain).range(xRange).padding(0.3);
+    xDateScale = d3.scaleQuantize().domain([0, xValues.length]).range(xValues);
 
-    const yScale = d3
+    yScale = d3
       .scaleLinear()
-      .domain([d3.min(ylValues), d3.max(yhValues)])
+      .domain(yDomain)
       .range([dimensions.ctrHeight, 0])
       .nice();
 
-    return { xDomain, xLinearScale, xScale, yScale, xDateScale };
+    return { xDomain };
   }
 
   // Draw Candles
-  function drawCandle(
-    IRange,
-    {
-      xValues,
-      xScale,
-      xLinearScale,
-      yScale,
-      ylValues,
-      yhValues,
-      yoValues,
-      ycValues,
-    }
-  ) {
+  function drawCandle() {
     ctr.selectAll(".chartBody").remove();
     let chartBody = ctr
       .append("g")
@@ -228,11 +239,19 @@ function wrap(text, width) {
     //   .attr("y2", (i) => yScale(yhValues[i]))
     //   .attr("class", "candle-wick");
 
-    const wicks = candleGroup
+    wicks = candleGroup
       .append("line")
       .attr("class", "candle-wick")
-      .attr("x1", (d, i) => xLinearScale(i) - xScale.bandwidth() / 2)
-      .attr("x2", (d, i) => xLinearScale(i) - xScale.bandwidth() / 2)
+      .attr("x1", (d, i) =>
+        xScaleZ
+          ? xScaleZ(i) - xScale.bandwidth() / 2 + xScale.bandwidth() * 0.5
+          : xLinearScale(i) - xScale.bandwidth() / 2
+      )
+      .attr("x2", (d, i) =>
+        xScaleZ
+          ? xScaleZ(i) - xScale.bandwidth() / 2 + xScale.bandwidth() * 0.5
+          : xLinearScale(i) - xScale.bandwidth() / 2
+      )
       .attr("y1", (d) => yScale(yhValues[d]))
       .attr("y2", (d) => yScale(ylValues[d]));
     // .attr("stroke", (i) => colors[1 + Math.sign(yoValues[i] - ycValues[i])]);
@@ -247,12 +266,16 @@ function wrap(text, width) {
     //   .attr("class", "candle-body")
     //   .attr("stroke", (i) => colors[1 + Math.sign(yoValues[i] - ycValues[i])]);
     // with 'rect'...
-    const candles = candleGroup
+    candles = candleGroup
       .append("rect")
-      .attr("x", (d, i) => xLinearScale(i) - xScale.bandwidth())
+      .attr("x", (d, i) =>
+        xScaleZ
+          ? xScaleZ(i) - (xScale.bandwidth() * t.k) / 2
+          : xLinearScale(i) - xScale.bandwidth()
+      )
       .attr("class", "candle-body")
       .attr("y", (d) => yScale(Math.max(yoValues[d], ycValues[d])))
-      .attr("width", xScale.bandwidth())
+      .attr("width", xScaleZ ? xScale.bandwidth() * t.k : xScale.bandwidth())
       .attr("height", (d) =>
         yoValues[d] === ycValues[d]
           ? 1
@@ -273,20 +296,22 @@ function wrap(text, width) {
       .attr("width", dimensions.ctrWidth)
       .attr("height", dimensions.ctrHeight);
 
-    return { candleGroup, wicks, candles };
+    return { candleGroup };
   }
 
   //Axis
-  function drawAxis({ xScale, xLinearScale, xDomain }, { yScale }) {
+  function drawAxis({ xDomain }) {
     let xAxis = d3
-      .axisBottom(xLinearScale)
+      .axisBottom(xScaleZ ? xScaleZ : xLinearScale)
       .tickFormat(intervalFormats[interval]);
     // .tickValues(
     //   intervalTickXValues[interval](d3.min(xDomain), d3.max(xDomain))
     // );
+
     ctr.selectAll(".xAxis").remove();
     ctr.selectAll(".yAxis").remove();
-    let xAxisGroup = ctr
+
+    xAxisGroup = ctr
       .append("g")
       .attr("class", "xAxis")
       .attr("transform", `translate(0, ${dimensions.ctrHeight})`)
@@ -310,38 +335,21 @@ function wrap(text, width) {
             .attr("x2", dimensions.ctrWidth) // vertical lines across the chart
       );
 
-    return { xAxisGroup, yAxisGroup };
+    return { yAxisGroup };
   }
 
   // Values
-  let { yoValues, ycValues, yhValues, ylValues, IRange } =
-    calculateAxisValues(dataset);
+  calculateAxisValues(dataset);
 
   if (dataset.length !== 0) {
     // Scales
-    const { xDomain, xScale, xLinearScale, yScale, xDateScale } =
-      calculateScale(xValues, {
-        ylValues,
-        yhValues,
-      });
+    const { xDomain } = calculateScale();
 
     //Axis
-    const { xAxisGroup, yAxisGroup } = drawAxis(
-      { xScale, xLinearScale, xDomain },
-      { yScale }
-    );
+    const { yAxisGroup } = drawAxis({ xDomain });
 
     // Draw Candles
-    const { candleGroup, candles, wicks } = drawCandle(IRange, {
-      xValues,
-      xScale,
-      xLinearScale,
-      yScale,
-      ylValues,
-      yhValues,
-      yoValues,
-      ycValues,
-    });
+    const { candleGroup } = drawCandle();
 
     // Scrollable
     const extent = [
@@ -360,16 +368,9 @@ function wrap(text, width) {
 
     function zoomed() {
       // debugger;
-      let t = d3.zoomTransform(this);
-      let xScaleZ = t.rescaleX(xLinearScale);
-
-      let hideTicksWithoutLabel = () => {
-        d3.selectAll(".xAxis .tick text").each(function (d) {
-          if (this.innerHTML === "") {
-            this.parentNode.style.display = "none";
-          }
-        });
-      };
+      // console.log("zooming", this);
+      t = d3.zoomTransform(this);
+      xScaleZ = t.rescaleX(xLinearScale);
 
       xAxisGroup
         .call(
@@ -401,15 +402,15 @@ function wrap(text, width) {
 
     function zoomend() {
       const duration = 400;
-      let t = d3.zoomTransform(this);
-      let xScaleZ = t.rescaleX(xLinearScale);
+      t = d3.zoomTransform(this);
+      xScaleZ = t.rescaleX(xLinearScale);
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () {
-        let xmin = new Date(xDateScale(Math.floor(xScaleZ.domain()[0])));
-        let xmax = new Date(xDateScale(Math.floor(xScaleZ.domain()[1])));
-        let filtered = dataset.filter((d) => d.Date >= xmin && d.Date <= xmax);
-        minP = +d3.min(filtered, ylAccessor);
-        maxP = +d3.max(filtered, yhAccessor);
+        xmin = new Date(xDateScale(Math.floor(xScaleZ.domain()[0])));
+        xmax = new Date(xDateScale(Math.floor(xScaleZ.domain()[1])));
+        filteredDate = dataset.filter((d) => d.Date >= xmin && d.Date <= xmax);
+        minP = +d3.min(filteredDate, ylAccessor);
+        maxP = +d3.max(filteredDate, yhAccessor);
         buffer = Math.floor((maxP - minP) * 0.1);
 
         yScale.domain([minP - buffer, maxP + buffer]);
@@ -447,7 +448,7 @@ function wrap(text, width) {
         //       .attr("stroke-opacity", 0.2)
         //       .attr("x2", dimensions.ctrWidth) // vertical lines across the chart
         // );
-      }, 250);
+      }, 1);
     }
   }
 
@@ -458,31 +459,12 @@ function wrap(text, width) {
       // 1. new data need to be added to 'dataset' then recalculate values
       dataset = [...dataset, updateData];
       // dataset.filter((d) => d.getUTCDay() !== 0 && d.getUTCDay() !== 6)
-      const { yoValues, ycValues, yhValues, ylValues, IRange } =
-        calculateAxisValues(dataset);
+      calculateAxisValues(dataset);
       // 2. update axis
-      const { xDomain, xScale, xLinearScale, yScale } = calculateScale(
-        xValues,
-        {
-          ylValues,
-          yhValues,
-        }
-      );
-      const { xAxisGroup, yAxisGroup } = drawAxis(
-        { xScale, xLinearScale, xDomain },
-        { yScale }
-      );
+      const { xDomain } = calculateScale();
+      const { yAxisGroup } = drawAxis({ xDomain });
       // 3. add candle
-      drawCandle(IRange, {
-        xValues,
-        xScale,
-        xLinearScale,
-        yScale,
-        ylValues,
-        yhValues,
-        yoValues,
-        ycValues,
-      });
+      drawCandle();
       // debugger;
     }
   }
