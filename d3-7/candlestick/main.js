@@ -65,7 +65,7 @@ let hideTicksWithoutLabel = () => {
   // get historical data then continue with chart drawing...
   // let dataset = [];
 
-  const colors = ["#1ACE37", "#999999", "#FF0F00"]; // [up, no change, down]
+  const colors = ["#00C076", "#999999", "#FF6838"]; // [up, no change, down]
 
   // Accessors
   const xAccessor = (d) => new Date(d.Date);
@@ -135,6 +135,69 @@ let hideTicksWithoutLabel = () => {
     .style("fill", "none")
     .style("pointer-events", "all")
     .attr("clip-path", "url(#clip)");
+
+  // clear old tooltips
+  d3.select(".focus").remove();
+  d3.select(".overlay").remove();
+
+  /******************************** Tooltip Code ********************************/
+
+  // const focus = ctr.append("g").attr("class", "focus").style("display", "none");
+
+  // focus
+  //   .append("line")
+  //   .attr("class", "x-hover-line hover-line")
+  //   .attr("y1", 0)
+  //   .attr("y2", dimensions.ctrHeight);
+
+  // focus
+  //   .append("line")
+  //   .attr("class", "-x-hover-line hover-line")
+  //   .attr("y2", -dimensions.ctrHeight)
+  //   .attr("y1", 0);
+
+  // focus
+  //   .append("line")
+  //   .attr("class", "y-hover-line hover-line")
+  //   .attr("x1", 0)
+  //   .attr("x2", dimensions.ctrWidth);
+
+  // focus
+  //   .append("line")
+  //   .attr("class", "-y-hover-line hover-line")
+  //   .attr("x2", dimensions.ctrWidth)
+  //   .attr("x1", 0);
+
+  // focus.append("circle").attr("r", 7.5);
+
+  // ctr
+  //   .append("rect")
+  //   .attr("class", "overlay")
+  //   .attr("width", dimensions.ctrWidth)
+  //   .attr("height", dimensions.ctrHeight)
+  //   .on("mouseover", () => focus.style("display", null))
+  //   .on("mouseout", () => focus.style("display", "none"))
+  //   .on("mousemove", mousemove);
+
+  // function mousemove() {
+  //   const x0 = xLinearScale.invert(d3.mouse(this)[0]);
+  //   const i = bisectDate(dataset, x0, 1);
+  //   const d0 = dataset[i - 1];
+  //   const d1 = dataset[i];
+  //   const d = x0 - d0.year > d1.year - x0 ? d1 : d0;
+  //   focus.attr("transform", `translate(${x(d.date)}, ${y(d[yValue])})`);
+  //   // focus.select("text").text(d[yValue]);
+  //   focus.select(".x-hover-line").attr("y2", HEIGHT - y(d[yValue]));
+  //   focus.select(".-x-hover-line").attr("y2", -y(d[yValue]));
+  //   yChangeLabel.style("display", null).attr("y", y(d[yValue])).text(d[yValue]);
+  //   xChangeLabel
+  //     .style("display", null)
+  //     .attr("x", x(d.date))
+  //     .text(formatTime(d.date));
+  //   focus.select(".y-hover-line").attr("x2", -x(d.date));
+  //   focus.select(".-y-hover-line").attr("x2", WIDTH - x(d.date));
+  // }
+  /******************************** Tooltip Code ********************************/
 
   // Interval Functions
   const intervalFunctions = {
@@ -253,8 +316,8 @@ let hideTicksWithoutLabel = () => {
           : xLinearScale(i) - xScale.bandwidth() / 2
       )
       .attr("y1", (d) => yScale(yhValues[d]))
-      .attr("y2", (d) => yScale(ylValues[d]));
-    // .attr("stroke", (i) => colors[1 + Math.sign(yoValues[i] - ycValues[i])]);
+      .attr("y2", (d) => yScale(ylValues[d]))
+      .attr("stroke", (i) => colors[1 + Math.sign(yoValues[i] - ycValues[i])]);
 
     // Candle body
     // with 'line'...
@@ -321,19 +384,16 @@ let hideTicksWithoutLabel = () => {
     xAxisGroup.selectAll(".tick text").call(wrap, xScale.bandwidth());
 
     let yAxis = d3.axisLeft(yScale).ticks(dimensions.height / 40, "~f");
-    let yAxisGroup = ctr
-      .append("g")
-      .attr("class", "yAxis")
-      .call(yAxis)
-      .call((g) => g.select(".domain").remove())
-      .call(
-        (g) =>
-          g
-            .selectAll(".tick line")
-            .clone()
-            .attr("stroke-opacity", 0.2)
-            .attr("x2", dimensions.ctrWidth) // vertical lines across the chart
-      );
+    let yAxisGroup = ctr.append("g").attr("class", "yAxis").call(yAxis);
+    // .call((g) => g.select(".domain").remove());
+    // .call(
+    //   (g) =>
+    //     g
+    //       .selectAll(".tick line")
+    //       .clone()
+    //       .attr("stroke-opacity", 0.2)
+    //       .attr("x2", dimensions.ctrWidth) // vertical lines across the chart
+    // );
 
     return { yAxisGroup };
   }
@@ -435,9 +495,9 @@ let hideTicksWithoutLabel = () => {
           .call((g) => g.select(".tick line.yaxis-tick-clone").remove())
           .transition()
           .duration(duration)
-          .call(d3.axisLeft(yScale).ticks(dimensions.height / 40, "~f"))
+          .call(d3.axisLeft(yScale).ticks(dimensions.height / 40, "~f"));
 
-          .call((g) => g.select(".domain").remove());
+        // .call((g) => g.select(".domain").remove());
 
         // yAxisGroup.call(
         //   (g) =>
@@ -469,19 +529,19 @@ let hideTicksWithoutLabel = () => {
     }
   }
 
-  binanceSocket.onmessage = function (event) {
-    var message = JSON.parse(event.data);
+  // binanceSocket.onmessage = function (event) {
+  //   var message = JSON.parse(event.data);
 
-    var candlestick = message.k;
+  //   var candlestick = message.k;
 
-    update({
-      Date: candlestick.t,
-      Open: candlestick.o,
-      High: candlestick.h,
-      Low: candlestick.l,
-      Close: candlestick.c,
-    });
-  };
+  //   update({
+  //     Date: candlestick.t,
+  //     Open: candlestick.o,
+  //     High: candlestick.h,
+  //     Low: candlestick.l,
+  //     Close: candlestick.c,
+  //   });
+  // };
 })();
 
 // axios
