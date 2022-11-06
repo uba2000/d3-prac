@@ -53,9 +53,9 @@ function wrap(text, width) {
   );
 
   // Data
-  let dataset = formatHistoryData(await d3.json(`history-${interval}.json`));
+  // let dataset = formatHistoryData(await d3.json(`history-${interval}.json`));
   // get historical data then continue with chart drawing...
-  // let dataset = [];
+  let dataset = [];
   // console.log(dataset);
 
   const colors = ["#1ACE37", "#999999", "#FF0F00"]; // [up, no change, down]
@@ -84,6 +84,31 @@ function wrap(text, width) {
   dimensions.ctrHeight =
     dimensions.height - dimensions.margin.top - dimensions.margin.bottom;
 
+  let xValues = d3.map(dataset, xAccessor);
+
+  // Draw image
+  const svg = d3
+    .select("#chart")
+    .append("svg")
+    .attr("width", dimensions.width)
+    .attr("height", dimensions.height);
+
+  const ctr = svg
+    .append("g")
+    .attr(
+      "transform",
+      `translate(${dimensions.margin.left}, ${dimensions.margin.top})`
+    );
+
+  const clipPath = ctr
+    .append("rect")
+    .attr("id", "rect")
+    .attr("width", dimensions.ctrWidth)
+    .attr("height", dimensions.ctrHeight)
+    .style("fill", "none")
+    .style("pointer-events", "all")
+    .attr("clip-path", "url(#clip)");
+
   // Interval Functions
   const intervalFunctions = {
     // Remove seconds or minutes for days on weekends...
@@ -106,12 +131,16 @@ function wrap(text, width) {
 
   // Interval x-axis formats
   function timeFunctionFormat(d) {
+    console.log(d);
+    console.log("length", xValues.length);
     if (d === xValues.length) d = xValues.length - 1;
     d = xValues[d];
-    hours = d.getHours();
-    minutes = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes();
-    amPM = hours < 13 ? "am" : "pm";
-    return hours + ":" + minutes + amPM;
+    if (d) {
+      hours = d.getHours();
+      minutes = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes();
+      amPM = hours < 13 ? "am" : "pm";
+      return hours + ":" + minutes + amPM;
+    }
   }
   const intervalFormats = {
     "1s": timeFunctionFormat,
@@ -122,7 +151,7 @@ function wrap(text, width) {
 
   // Values
   function calculateAxisValues(data) {
-    const xValues = d3.map(data, xAccessor);
+    xValues = d3.map(data, xAccessor);
     const yoValues = d3.map(data, yoAccessor);
     const ycValues = d3.map(data, ycAccessor);
     const yhValues = d3.map(data, yhAccessor);
@@ -171,6 +200,7 @@ function wrap(text, width) {
       ycValues,
     }
   ) {
+    ctr.selectAll(".chartBody").remove();
     let chartBody = ctr
       .append("g")
       .attr("class", "chartBody")
@@ -188,7 +218,7 @@ function wrap(text, width) {
     // remove previous candle groups
     candleGroup.select("line.wick").remove();
     candleGroup.select("line.body").remove();
-    // ctr.select('defs').remove();
+    ctr.select("defs").remove();
 
     // Wick
     // with 'line'...
@@ -232,6 +262,9 @@ function wrap(text, width) {
       .attr("fill", (i) => colors[1 + Math.sign(yoValues[i] - ycValues[i])])
       .attr("stroke", "transparent");
 
+    ctr.selectAll("#clip").remove();
+    ctr.selectAll("defs").remove();
+
     ctr
       .append("defs")
       .append("clipPath")
@@ -251,6 +284,8 @@ function wrap(text, width) {
     // .tickValues(
     //   intervalTickXValues[interval](d3.min(xDomain), d3.max(xDomain))
     // );
+    ctr.selectAll(".xAxis").remove();
+    ctr.selectAll(".yAxis").remove();
     let xAxisGroup = ctr
       .append("g")
       .attr("class", "xAxis")
@@ -278,31 +313,8 @@ function wrap(text, width) {
     return { xAxisGroup, yAxisGroup };
   }
 
-  // Draw image
-  const svg = d3
-    .select("#chart")
-    .append("svg")
-    .attr("width", dimensions.width)
-    .attr("height", dimensions.height);
-
-  const ctr = svg
-    .append("g")
-    .attr(
-      "transform",
-      `translate(${dimensions.margin.left}, ${dimensions.margin.top})`
-    );
-
-  const clipPath = ctr
-    .append("rect")
-    .attr("id", "rect")
-    .attr("width", dimensions.ctrWidth)
-    .attr("height", dimensions.ctrHeight)
-    .style("fill", "none")
-    .style("pointer-events", "all")
-    .attr("clip-path", "url(#clip)");
-
   // Values
-  const { xValues, yoValues, ycValues, yhValues, ylValues, IRange } =
+  let { yoValues, ycValues, yhValues, ylValues, IRange } =
     calculateAxisValues(dataset);
 
   if (dataset.length !== 0) {
@@ -442,10 +454,11 @@ function wrap(text, width) {
   function update(updateData) {
     if (updateData.Date % intervalNumber === 0) {
       // update data of same time
-      dataset = dataset.filter((d) => d.Date !== updateData.Date);
+      // dataset = dataset.filter((d) => d.Date !== updateData.Date);
       // 1. new data need to be added to 'dataset' then recalculate values
       dataset = [...dataset, updateData];
-      const { xValues, yoValues, ycValues, yhValues, ylValues, IRange } =
+      // dataset.filter((d) => d.getUTCDay() !== 0 && d.getUTCDay() !== 6)
+      const { yoValues, ycValues, yhValues, ylValues, IRange } =
         calculateAxisValues(dataset);
       // 2. update axis
       const { xDomain, xScale, xLinearScale, yScale } = calculateScale(
@@ -470,22 +483,23 @@ function wrap(text, width) {
         yoValues,
         ycValues,
       });
+      // debugger;
     }
   }
 
-  // binanceSocket.onmessage = function (event) {
-  //   var message = JSON.parse(event.data);
+  binanceSocket.onmessage = function (event) {
+    var message = JSON.parse(event.data);
 
-  //   var candlestick = message.k;
+    var candlestick = message.k;
 
-  //   update({
-  //     Date: candlestick.t,
-  //     Open: candlestick.o,
-  //     High: candlestick.h,
-  //     Low: candlestick.l,
-  //     Close: candlestick.c,
-  //   });
-  // };
+    update({
+      Date: candlestick.t,
+      Open: candlestick.o,
+      High: candlestick.h,
+      Low: candlestick.l,
+      Close: candlestick.c,
+    });
+  };
 })();
 
 // axios
