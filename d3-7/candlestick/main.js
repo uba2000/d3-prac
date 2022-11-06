@@ -105,9 +105,17 @@ function wrap(text, width) {
   };
 
   // Interval x-axis formats
+  function timeFunctionFormat(d) {
+    if (d === xValues.length) d = xValues.length - 1;
+    d = xValues[d];
+    hours = d.getHours();
+    minutes = (d.getMinutes() < 10 ? "0" : "") + d.getMinutes();
+    amPM = hours < 13 ? "am" : "pm";
+    return hours + ":" + minutes + amPM;
+  }
   const intervalFormats = {
-    "1s": d3.utcFormat("%-H:%M:%S"),
-    "1m": d3.utcFormat("%-H:%M:%S"),
+    "1s": timeFunctionFormat,
+    "1m": timeFunctionFormat,
     "5m": d3.utcFormat("%b %-d"),
     "1d": d3.utcFormat("%b %-d"),
   };
@@ -239,10 +247,10 @@ function wrap(text, width) {
   function drawAxis({ xScale, xLinearScale, xDomain }, { yScale }) {
     let xAxis = d3
       .axisBottom(xLinearScale)
-      .tickFormat(intervalFormats[interval])
-      .tickValues(
-        intervalTickXValues[interval](d3.min(xDomain), d3.max(xDomain))
-      );
+      .tickFormat(intervalFormats[interval]);
+    // .tickValues(
+    //   intervalTickXValues[interval](d3.min(xDomain), d3.max(xDomain))
+    // );
     let xAxisGroup = ctr
       .append("g")
       .attr("class", "xAxis")
@@ -338,11 +346,9 @@ function wrap(text, width) {
 
     svg.call(zoom);
 
-    function zoomed(event) {
-      console.log("zoomed");
+    function zoomed() {
       // debugger;
       let t = d3.zoomTransform(this);
-      // let t = event.transform;
       let xScaleZ = t.rescaleX(xLinearScale);
 
       let hideTicksWithoutLabel = () => {
@@ -355,12 +361,10 @@ function wrap(text, width) {
 
       xAxisGroup
         .call(
-          d3
-            .axisBottom(xScale)
-            .tickFormat(intervalFormats[interval])
-            .tickValues(
-              intervalTickXValues[interval](d3.min(xDomain), d3.max(xDomain))
-            )
+          d3.axisBottom(xScaleZ).tickFormat(intervalFormats[interval])
+          // .tickValues(
+          //   intervalTickXValues[interval](d3.min(xDomain), d3.max(xDomain))
+          // )
         )
         .call((g) => g.select(".domain").remove());
       // debugger;
@@ -380,12 +384,12 @@ function wrap(text, width) {
       hideTicksWithoutLabel();
 
       xAxisGroup.selectAll(".tick text").call(wrap, xScale.bandwidth());
+      // yAxisGroup.call((g) => g.select(".domain").remove());
     }
 
-    function zoomend(event) {
-      console.log("zoomend");
+    function zoomend() {
+      const duration = 400;
       let t = d3.zoomTransform(this);
-      // let t = event.transform;
       let xScaleZ = t.rescaleX(xLinearScale);
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () {
@@ -399,7 +403,7 @@ function wrap(text, width) {
         yScale.domain([minP - buffer, maxP + buffer]);
         candles
           .transition()
-          .duration(800)
+          .duration(duration)
           .attr("y", (d) => yScale(Math.max(yoValues[d], ycValues[d])))
           .attr("height", (d) =>
             yoValues[d] === ycValues[d]
@@ -410,16 +414,28 @@ function wrap(text, width) {
 
         wicks
           .transition()
-          .duration(800)
+          .duration(duration)
           .attr("y1", (d) => yScale(yhValues[d]))
           .attr("y2", (d) => yScale(ylValues[d]));
 
         yAxisGroup
+          .call((g) => g.select(".tick line.yaxis-tick-clone").remove())
           .transition()
-          .duration(800)
+          .duration(duration)
           .call(d3.axisLeft(yScale).ticks(dimensions.height / 40, "~f"))
+
           .call((g) => g.select(".domain").remove());
-      }, 500);
+
+        // yAxisGroup.call(
+        //   (g) =>
+        //     g
+        //       .selectAll(".tick line")
+        //       .clone()
+        //       .attr("class", "yaxis-tick-clone")
+        //       .attr("stroke-opacity", 0.2)
+        //       .attr("x2", dimensions.ctrWidth) // vertical lines across the chart
+        // );
+      }, 250);
     }
   }
 
@@ -432,22 +448,28 @@ function wrap(text, width) {
       const { xValues, yoValues, ycValues, yhValues, ylValues, IRange } =
         calculateAxisValues(dataset);
       // 2. update axis
-      const { xDomain, xScale, yScale } = calculateScale(xValues, {
-        ylValues,
-        yhValues,
-      });
+      const { xDomain, xScale, xLinearScale, yScale } = calculateScale(
+        xValues,
+        {
+          ylValues,
+          yhValues,
+        }
+      );
+      const { xAxisGroup, yAxisGroup } = drawAxis(
+        { xScale, xLinearScale, xDomain },
+        { yScale }
+      );
       // 3. add candle
       drawCandle(IRange, {
         xValues,
         xScale,
+        xLinearScale,
         yScale,
         ylValues,
         yhValues,
         yoValues,
         ycValues,
       });
-
-      drawAxis({ xScale, xDomain }, { yScale });
     }
   }
 
