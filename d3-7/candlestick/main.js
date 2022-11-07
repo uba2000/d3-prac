@@ -40,7 +40,7 @@ let hideTicksWithoutLabel = () => {
   });
 };
 
-(async function draw(historyData) {
+async function draw(historyData) {
   function formatHistoryData(data) {
     return data.map((d) => {
       return {
@@ -61,7 +61,7 @@ let hideTicksWithoutLabel = () => {
   );
 
   // Data
-  let dataset = formatHistoryData(await d3.json(`history-${interval}.json`));
+  let dataset = formatHistoryData(historyData);
   // get historical data then continue with chart drawing...
   // let dataset = [];
 
@@ -529,31 +529,32 @@ let hideTicksWithoutLabel = () => {
     }
   }
 
-  // binanceSocket.onmessage = function (event) {
-  //   var message = JSON.parse(event.data);
+  binanceSocket.onmessage = function (event) {
+    var message = JSON.parse(event.data);
 
-  //   var candlestick = message.k;
+    var candlestick = message.k;
+    // console.log(candlestick);
 
-  //   update({
-  //     Date: candlestick.t,
-  //     Open: candlestick.o,
-  //     High: candlestick.h,
-  //     Low: candlestick.l,
-  //     Close: candlestick.c,
-  //   });
-  // };
-})();
+    update({
+      Date: candlestick.t,
+      Open: candlestick.o,
+      High: candlestick.h,
+      Low: candlestick.l,
+      Close: candlestick.c,
+    });
+  };
+}
 
-// axios
-//   .get("http://localhost:5500/get-data", { mode: "no-cors" })
-//   .then(function (response) {
-//     // handle success
-//     console.log(response);
-//   })
-//   .catch(function (error) {
-//     // handle error
-//     console.log(error);
-//   })
-//   .finally(function () {
-//     // always executed
-//   });
+axios
+  .get("http://localhost:5500/get-data", { mode: "no-cors" })
+  .then(function (response) {
+    // handle success
+    draw(response.data);
+  })
+  .catch(function (error) {
+    // handle error
+    console.log(error);
+  })
+  .finally(function () {
+    // always executed
+  });
